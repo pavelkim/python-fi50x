@@ -1,0 +1,27 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Build artifacts
+build/
+dist/
+
+# Virtual environments
+.virtualenv/
+.venv/
+venv/
+env/
+
+# Tooling caches
+.tox/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment / secrets (use .env.example as the template)
+.env
+
+# OS cruft
+.DS_Store
