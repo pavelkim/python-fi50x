@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python-fi50x"
+description = "Transport-agnostic driver library for the FI-50X UHF RFID reader (ISO-18000-6C)"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [{ name = "Pavel Kim", email = "hello@pavelkim.com" }]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["rfid", "uhf", "fi-50x", "iso-18000-6c", "epc", "gen2", "serial"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+    "Topic :: Communications",
+]
+dynamic = ["version"]
+dependencies = [
+    "pyserial>=3.5,<4",
+]
+
+[project.optional-dependencies]
+# The bidirectional RabbitMQ service layer (Phase 2) and the example's .env loading.
+service = [
+    "pika>=1.3.2",
+    "pyp8s>=3.5.0",
+    "python-decouple>=3.8",
+]
+dev = [
+    "pytest>=7",
+    "build>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/pavelkim/python-fi50x"
+
+[tool.setuptools]
+# Ship only the driver package. The example script, tests, old_android_code/,
+# downstream/ and the throwaway scanner.py are intentionally excluded.
+packages = ["fi50x"]
+
+[tool.setuptools.dynamic]
+version = { attr = "fi50x.version.__version__" }
+
+[tool.setuptools.package-data]
+fi50x = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
