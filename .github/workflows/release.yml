@@ -1,69 +1,97 @@
 name: Release
 
-# Publishes to PyPI when a GitHub Release is published. Uses PyPI Trusted
-# Publishing (OIDC) — no API token/secret. PyPI validates this workflow by its
-# path (.github/workflows/release.yml), so do not rename the file without also
-# updating the trusted publisher on PyPI.
+# Automatic, version-file-driven release (mirrors the printer-stream/py-ibm-4610
+# pattern). On every push to master, check whether fi50x/version.py declares a
+# version that has not been tagged yet. If so: test, build, publish to PyPI via
+# Trusted Publishing (OIDC, no secret), then tag and cut a GitHub Release.
+#
+# To release: bump fi50x/version.py and merge to master. Nothing else to do.
+#
+# PyPI validates this workflow by its path (.github/workflows/release.yml) — do
+# not rename the file without updating the trusted publisher on PyPI.
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build distribution
+  validate_new_version:
+    name: Validate new version
     runs-on: ubuntu-latest
+    outputs:
+      planned_version: ${{ steps.validate.outputs.planned_version }}
+      can_create: ${{ steps.validate.outputs.can_create }}
+      tag_exists: ${{ steps.validate.outputs.tag_exists }}
+      branch_name: ${{ steps.validate.outputs.branch_name }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Check out repository
+        uses: actions/checkout@v6
         with:
-          python-version: "3.12"
+          fetch-depth: 0
 
-      - name: Verify release tag matches package version
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          VERSION="$(python -c "import re, pathlib; print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', pathlib.Path('fi50x/version.py').read_text()).group(1))")"
-          echo "release tag: $TAG / package version: $VERSION"
-          if [ "$TAG" != "$VERSION" ]; then
-            echo "::error::Release tag ($TAG) does not match fi50x.version.__version__ ($VERSION). Bump fi50x/version.py or fix the tag."
-            exit 1
-          fi
+      - name: Extract version into .version
+        run: >-
+          grep -E '^__version__' fi50x/version.py | cut -d '=' -f 2 | tr -d "\"' _" > .version
 
-      - name: Build sdist and wheel
-        run: |
-          python -m pip install --upgrade pip build twine
-          python -m build
-
-      - name: Check distribution metadata
-        run: twine check dist/*
-
-      - name: Upload built distributions
-        uses: actions/upload-artifact@v4
+      - name: Validate version against existing tags
+        id: validate
+        uses: reinvented-stuff/validate-version-action@1.2.0
         with:
-          name: dist
-          path: dist/*
-          if-no-files-found: error
+          version_filename: ".version"
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
+          fail_on_error: true
 
-  publish:
-    name: Publish to PyPI
-    needs: build
+  release:
+    name: Release and publish
     runs-on: ubuntu-latest
-    # Best-practice deployment environment; enables adding release protection
-    # rules later. Remove or rename if your PyPI trusted publisher pins a
-    # different environment (you specified only the workflow name, so this
-    # assumes the publisher was registered without an environment).
+    needs:
+      - validate_new_version
+    # Only when version.py holds a new, not-yet-tagged version.
+    if: needs.validate_new_version.outputs.can_create == 'true'
+    permissions:
+      id-token: write  # OIDC for PyPI Trusted Publishing
+      contents: write  # create the tag and the GitHub Release
     environment:
       name: pypi
       url: https://pypi.org/p/python-fi50x
-    permissions:
-      id-token: write  # required for OIDC trusted publishing
+    env:
+      PLANNED_VERSION: ${{ needs.validate_new_version.outputs.planned_version }}
     steps:
-      - name: Download built distributions
-        uses: actions/download-artifact@v4
+      - name: Check out repository
+        uses: actions/checkout@v6
         with:
-          name: dist
-          path: dist
+          fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+          pytest -q
+
+      - name: Build sdist and wheel
+        run: |
+          python -m build
+          twine check dist/*
+
+      # Publish before tagging so a failed upload leaves no tag — the next push
+      # re-runs cleanly. skip-existing keeps re-runs idempotent.
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+      - name: Tag and create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release create "${PLANNED_VERSION}"
+          --target "${GITHUB_SHA}"
+          --title "v${PLANNED_VERSION}"
+          --generate-notes
+          dist/*

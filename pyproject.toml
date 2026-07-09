@@ -40,6 +40,7 @@ service = [
 dev = [
     "pytest>=7",
     "build>=1.0",
+    "twine>=5.0",
 ]
 
 [project.urls]
