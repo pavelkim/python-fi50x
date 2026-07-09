@@ -1,0 +1,9 @@
+# Core driver library
+pyserial>=3.5
+
+# Configuration
+python-decouple>=3.8
+
+# RabbitMQ service layer
+pika>=1.3.2
+pyp8s>=3.5.0
