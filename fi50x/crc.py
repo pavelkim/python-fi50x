@@ -40,17 +40,22 @@ def verify_epc(pc_hex: str, epc_hex: str, crc_hex: str) -> bool:
     """
     Verify a tag's CRC-16 against its PC + EPC.
 
+    Uses the residue method (the same one the vendor's ``verify_crc16`` sample
+    uses): run the CRC over the whole ``PC + EPC + CRC`` frame and check the
+    result equals the constant residue ``0x1D0F``. This is required because the
+    Gen2 CRC-16 (CRC-16/GENIBUS) stores the *complement* of the raw CRC, so a
+    direct ``crc16(PC+EPC) == CRC`` comparison never matches a real tag.
+
     Args:
         pc_hex: the 4-hex-char PC word.
         epc_hex: the EPC hex string.
         crc_hex: the 4-hex-char CRC word returned by the reader.
 
     Returns:
-        True if the computed CRC matches ``crc_hex``.
+        True if the frame's CRC is valid.
     """
     try:
-        pc_epc = bytes.fromhex(pc_hex + epc_hex)
-        expected = int(crc_hex, 16)
+        frame = bytes.fromhex(pc_hex + epc_hex + crc_hex)
     except ValueError:
         return False
-    return crc16(pc_epc) == expected
+    return crc16(frame) == CRC_RESIDUE

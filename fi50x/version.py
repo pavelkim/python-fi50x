@@ -5,4 +5,4 @@ Kept dependency-free and assignment-only so it can be read by static analysis
 without importing the package.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

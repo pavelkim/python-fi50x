@@ -12,16 +12,23 @@ def test_crc16_empty():
     assert crc.crc16(b"") == 0xFFFF
 
 
+def test_crc16_ccitt_false_check_value():
+    # Pins the algorithm: the standard CRC-16/CCITT-FALSE check value for the
+    # ASCII string "123456789" is 0x29B1. (Gen2 stores this XOR 0xFFFF = GENIBUS.)
+    assert crc.crc16(b"123456789") == 0x29B1
+
+
 def test_verify_epc_round_trip():
-    # Build a PC+EPC, compute its CRC with the same routine, and confirm verify
-    # accepts the matching CRC and rejects a corrupted one.
+    # A real Gen2 tag stores the *complement* of the raw CRC (GENIBUS xorout),
+    # so build the stored CRC that way and confirm the residue check accepts it
+    # and rejects a corrupted one.
     pc = "3000"
     epc = "E28011606000020BADC0FFEE"
-    computed = crc.crc16(bytes.fromhex(pc + epc))
-    crc_hex = f"{computed:04X}"
+    stored = crc.crc16(bytes.fromhex(pc + epc)) ^ 0xFFFF
+    crc_hex = f"{stored:04X}"
 
     assert crc.verify_epc(pc, epc, crc_hex) is True
-    wrong = f"{(computed ^ 0x0001):04X}"
+    wrong = f"{(stored ^ 0x0001):04X}"
     assert crc.verify_epc(pc, epc, wrong) is False
 
 
